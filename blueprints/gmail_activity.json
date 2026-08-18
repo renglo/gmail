@@ -1,0 +1,48 @@
+{
+  "_id": "b2c3d4e5-f6a7-8901-bcde-f12345678902",
+  "added": "2026-08-06T12:00:00.000000",
+  "blueprint_origin": "",
+  "description": "Gmail activity index — one document per UTC day with append-only entries; large poll details in S3",
+  "fields": [
+    {
+      "cardinality": "single",
+      "default": "",
+      "hint": "UTC calendar date (YYYY-MM-DD); document _id matches this field",
+      "label": "Journal date",
+      "layer": "0",
+      "multilingual": false,
+      "name": "journal_date",
+      "order": "1",
+      "required": true,
+      "semantic": "gmail:journal_date",
+      "source": "",
+      "type": "string",
+      "widget": "text"
+    },
+    {
+      "cardinality": "multiple",
+      "default": "",
+      "hint": "Append-only activity rows (event_id, ts, event_type, summary, refs, detail_s3_path)",
+      "label": "Entries",
+      "layer": "1",
+      "multilingual": false,
+      "name": "entries",
+      "order": "2",
+      "required": false,
+      "semantic": "gmail:activity_entries",
+      "source": "",
+      "type": "object",
+      "widget": "list"
+    }
+  ],
+  "handle": "irma",
+  "irn": "irn:blueprint:irma:gmail_activity",
+  "label": "Gmail activity",
+  "license": "CC BY",
+  "name": "gmail_activity",
+  "public": true,
+  "singleton": false,
+  "status": "final",
+  "uri": "https://renglo.com/_blueprint/irma/gmail_activity/0.0.1",
+  "version": "0.0.1"
+}

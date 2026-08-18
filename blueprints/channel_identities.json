@@ -1,0 +1,113 @@
+{
+  "_id": "a1b2c3d4-e5f6-7890-abcd-ef1234568002",
+  "added": "2026-08-03T12:00:00.000000",
+  "blueprint_origin": "",
+  "description": "Bound channel identities (e.g. channel wa_id \u2194 Renglo user)",
+  "fields": [
+    {
+      "cardinality": "single",
+      "default": "",
+      "hint": "Channel kind (whatsapp, gmail)",
+      "label": "Channel",
+      "layer": "0",
+      "multilingual": false,
+      "name": "channel",
+      "order": "1",
+      "required": true,
+      "semantic": "channel:kind",
+      "source": "",
+      "type": "string",
+      "widget": "text"
+    },
+    {
+      "cardinality": "single",
+      "default": "",
+      "hint": "Provider-native sender id (Meta wa_id)",
+      "label": "External id",
+      "layer": "0",
+      "multilingual": false,
+      "name": "external_id",
+      "order": "2",
+      "required": true,
+      "semantic": "channel:external_id",
+      "source": "",
+      "type": "string",
+      "widget": "text"
+    },
+    {
+      "cardinality": "single",
+      "default": "",
+      "hint": "Renglo user _id (9-char md5 from Cognito username)",
+      "label": "User id",
+      "layer": "0",
+      "multilingual": false,
+      "name": "user_id",
+      "order": "3",
+      "required": true,
+      "semantic": "channel:user_id",
+      "source": "",
+      "type": "string",
+      "widget": "text"
+    },
+    {
+      "cardinality": "single",
+      "default": "",
+      "hint": "Optional display name from the channel profile",
+      "label": "Display name",
+      "layer": "1",
+      "multilingual": false,
+      "name": "display_name",
+      "order": "4",
+      "required": false,
+      "semantic": "channel:display_name",
+      "source": "",
+      "type": "string",
+      "widget": "text"
+    },
+    {
+      "cardinality": "single",
+      "default": "",
+      "hint": "ISO timestamp when the identity was linked",
+      "label": "Linked at",
+      "layer": "1",
+      "multilingual": false,
+      "name": "linked_at",
+      "order": "5",
+      "required": false,
+      "semantic": "channel:linked_at",
+      "source": "",
+      "type": "string",
+      "widget": "text"
+    },
+    {
+      "cardinality": "single",
+      "default": "",
+      "hint": "ISO timestamp of last inbound message",
+      "label": "Last seen at",
+      "layer": "1",
+      "multilingual": false,
+      "name": "last_seen_at",
+      "order": "6",
+      "required": false,
+      "semantic": "channel:last_seen_at",
+      "source": "",
+      "type": "string",
+      "widget": "text"
+    }
+  ],
+  "indexes": {
+    "path": [
+      "channel",
+      "external_id"
+    ]
+  },
+  "handle": "irma",
+  "irn": "irn:blueprint:irma:channel_identities",
+  "label": "Channel identities",
+  "license": "CC BY",
+  "name": "channel_identities",
+  "public": true,
+  "status": "final",
+  "uri": "https://renglo.com/_blueprint/irma/channel_identities/0.0.1",
+  "version": "0.0.1"
+}

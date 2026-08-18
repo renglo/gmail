@@ -1,0 +1,98 @@
+{
+  "_id": "a1b2c3d4-e5f6-7890-abcd-ef1234568003",
+  "added": "2026-08-03T12:00:00.000000",
+  "blueprint_origin": "",
+  "description": "Hashed single-use LINK tokens for channel identity binding",
+  "fields": [
+    {
+      "cardinality": "single",
+      "default": "",
+      "hint": "Channel kind (whatsapp, gmail)",
+      "label": "Channel",
+      "layer": "0",
+      "multilingual": false,
+      "name": "channel",
+      "order": "1",
+      "required": true,
+      "semantic": "channel:kind",
+      "source": "",
+      "type": "string",
+      "widget": "text"
+    },
+    {
+      "cardinality": "single",
+      "default": "",
+      "hint": "SHA-256 hex of normalized LINK token (never store plaintext)",
+      "label": "Code hash",
+      "layer": "0",
+      "multilingual": false,
+      "name": "code_hash",
+      "order": "2",
+      "required": true,
+      "semantic": "channel:code_hash",
+      "source": "",
+      "type": "string",
+      "widget": "text"
+    },
+    {
+      "cardinality": "single",
+      "default": "",
+      "hint": "Renglo user who minted the code",
+      "label": "User id",
+      "layer": "0",
+      "multilingual": false,
+      "name": "user_id",
+      "order": "3",
+      "required": true,
+      "semantic": "channel:user_id",
+      "source": "",
+      "type": "string",
+      "widget": "text"
+    },
+    {
+      "cardinality": "single",
+      "default": "",
+      "hint": "UNIX epoch seconds when the code expires",
+      "label": "Expires at",
+      "layer": "1",
+      "multilingual": false,
+      "name": "expires_at",
+      "order": "4",
+      "required": true,
+      "semantic": "channel:expires_at",
+      "source": "",
+      "type": "string",
+      "widget": "text"
+    },
+    {
+      "cardinality": "single",
+      "default": "",
+      "hint": "ISO timestamp when consumed (empty while pending)",
+      "label": "Consumed at",
+      "layer": "1",
+      "multilingual": false,
+      "name": "consumed_at",
+      "order": "5",
+      "required": false,
+      "semantic": "channel:consumed_at",
+      "source": "",
+      "type": "string",
+      "widget": "text"
+    }
+  ],
+  "indexes": {
+    "path": [
+      "channel",
+      "code_hash"
+    ]
+  },
+  "handle": "irma",
+  "irn": "irn:blueprint:irma:channel_link_codes",
+  "label": "Channel link codes",
+  "license": "CC BY",
+  "name": "channel_link_codes",
+  "public": true,
+  "status": "final",
+  "uri": "https://renglo.com/_blueprint/irma/channel_link_codes/0.0.1",
+  "version": "0.0.1"
+}
