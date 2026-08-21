@@ -3,7 +3,7 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gmail-mod"
+name = "renglo-gmail"
 version = "1.0.0"
 description = "Gmail agent inbox channel for Renglo — OAuth connect, LINK gating, poll inbound, threaded reply"
 authors = [
