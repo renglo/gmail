@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "renglo-gmail"
-version = "1.0.1rc1"
+version = "1.0.1"
 description = "Gmail agent inbox channel for Renglo — OAuth connect, LINK gating, poll inbound, threaded reply"
 authors = [
     {name = "NOMA Team"}
