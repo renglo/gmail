@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 from flask import current_app
 
 from renglo.auth.auth_controller import AuthController
+from renglo.blueprint.blueprint_controller import BlueprintController
 from renglo.common import load_config
 from renglo.data.data_controller import DataController
 from renglo.schd.schd_controller import SchdController
@@ -15,6 +16,13 @@ from renglo.schd.schd_controller import SchdController
 from .config import CONFIG_ORG, ConfigStore
 
 _logger = logging.getLogger(__name__)
+
+REQUIRED_BLUEPRINT_RINGS = (
+    "gmail_config",
+    "gmail_activity",
+    "channel_link_codes",
+    "channel_identities",
+)
 
 
 class GmailOnboardings:
@@ -25,8 +33,39 @@ class GmailOnboardings:
         self.config = config
         self.DAC = DataController(config=config)
         self.AUC = AuthController(config=config)
+        self.BPC = BlueprintController(config=config)
         self.SHC = SchdController(config=config)
         self.bridge: Dict[str, Any] = {}
+
+    def _blueprint_present(self, ring: str) -> bool:
+        blueprint = self.BPC.get_blueprint("irma", ring, "last")
+        return (
+            isinstance(blueprint, dict)
+            and blueprint.get("success") is not False
+            and "fields" in blueprint
+        )
+
+    def _extension_blueprints_present(self) -> bool:
+        return all(self._blueprint_present(ring) for ring in REQUIRED_BLUEPRINT_RINGS)
+
+    def ensure_extension_initialized(
+        self, portfolio: str, payload: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        action = "ensure_extension_initialized"
+        if self._extension_blueprints_present():
+            return {
+                "success": True,
+                "action": action,
+                "message": "Extension blueprints already present",
+            }
+
+        from .initialize_extension import InitializeExtension
+
+        init_payload = {
+            "portfolio": portfolio,
+            "org": str(payload.get("org") or CONFIG_ORG).strip() or CONFIG_ORG,
+        }
+        return InitializeExtension().run(init_payload)
 
     def create_tool(self, portfolio: str, tool: str, handle: str) -> Dict[str, Any]:
         action = "create_tool"
@@ -167,6 +206,11 @@ class GmailOnboardings:
 
         # Portfolio-wide install (same pattern as WhatsApp): config + schd at _all.
         org = CONFIG_ORG
+
+        init_step = self.ensure_extension_initialized(portfolio, payload)
+        results.append(init_step)
+        if not init_step.get("success"):
+            return {"success": False, "output": results}
 
         response_tool = self.create_tool(portfolio, "Gmail", "gmail")
         results.append(response_tool)

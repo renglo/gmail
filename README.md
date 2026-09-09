@@ -12,7 +12,7 @@ Portfolio-wide **agent inbox channel** (config at `_all`, same balance as WhatsA
 |              | This extension                                       | Old `example/gmail`       | cos-demo “Link Google”       |
 | ------------ | ---------------------------------------------------- | ------------------------- | ---------------------------- |
 | Purpose      | Agent **channel** (inbound → agent → threaded reply) | Same idea, heavy GCP push | Personal Workspace **tools** |
-| OAuth client | **Platform*** owns one Google app                     | Per-deploy GCP + Pub/Sub  | Platform owns one Google app |
+| OAuth client | **Platform*** owns one Google app                    | Per-deploy GCP + Pub/Sub  | Platform owns one Google app |
 | Tenant setup | Connect consent only                                 | Watch + DWD + tokens      | Link Google                  |
 | Who can talk | **Linked** senders only (`LINK-…`)                   | Open / FAQ-style          | N/A                          |
 
@@ -22,6 +22,8 @@ Portfolio-wide **agent inbox channel** (config at `_all`, same balance as WhatsA
 **Not required:** Pub/Sub, domain-wide delegation, service accounts, org-policy exceptions, watch renewal, or per-tenant GCP projects.
 
 ---
+
+
 
 ## Platform setup (once)
 
@@ -33,9 +35,11 @@ Done by the Renglo operator — not by each portfolio/org.
 2. **APIs & Services → Library** → enable **Gmail API**
 3. Do **not** enable Pub/Sub for this extension
 
+
+
 ### 2. OAuth consent screen
 
-1. **APIs & Services → OAuth consent screen**
+1.  **Google Auth Platform > Branding**
 2. For agent inboxes on **any Google domain**, choose **External**
 3. App name: e.g. `Renglo Gmail`
 4. Add scopes:
@@ -48,9 +52,11 @@ Done by the Renglo operator — not by each portfolio/org.
 
 > `gmail.modify` / `gmail.send` are restricted scopes. External apps need verification for unrestricted production use — same class of work products like Asana complete once. Until then, Testing mode + test users is enough to develop.
 
+
+
 ### 3. Create OAuth client (Web application)
 
-1. **Credentials → Create credentials → OAuth client ID**
+1. **Google Auth Platform > Clients >Create client** 
 2. Type: **Web application**
 3. **Authorized redirect URIs** — exact value:
 
@@ -61,6 +67,8 @@ Done by the Renglo operator — not by each portfolio/org.
 Examples: `https://api.your-host.com/_schd/gmail/oauth_callback` or local API URL.
 
 1. Copy **Client ID** and **Client secret**
+
+
 
 ### 4. Configure the Renglo API
 
@@ -78,6 +86,8 @@ BASE_URL=https://api.your-host.com
 Also ensure state signing has `OAUTH_STATE_SECRET`, `AUTH_SECRET`, or `SECRET_KEY`.
 
 ---
+
+
 
 ## Tenant setup (each portfolio)
 
@@ -97,6 +107,8 @@ No GCP, no client secrets, no redirect URI registration for the tenant.
 
 ---
 
+
+
 ## Renglo install (ops)
 
 ```bash
@@ -114,21 +126,25 @@ Onboarding creates the tool, `schd_tools`, singleton `gmail_config`, poll job, a
 
 ---
 
+
+
 ## Operations
 
 
-| Topic     | Behavior                                                     |
-| --------- | ------------------------------------------------------------ |
-| Poll      | ~2 min cron and/or **Poll now** (`trigger`: cron vs manual)  |
-| Batch     | `gmail_config.poll_batch_size` (1–100, default 25)           |
-| Unread    | Process `in:inbox is:unread`, then clear `UNREAD`            |
-| Spam LINK | While a LINK code is pending, also scan spam for `"LINK-"` messages matching that code (capped; see Security) |
-| Activity  | **Gmail → Activity** — indexed log + S3 poll detail          |
-| Tokens    | Refresh via platform OAuth client + stored refresh token     |
-| Agent     | `gmail_config.agent_handler` (default `dumbo/generic_agent`) |
-| Gmail reply | `threadId` + `In-Reply-To` / `References`                    |
-| Sessions  | `user-gmailthread` / `{userId}-{gmailThreadId}` + Renglo thread UUID (`ensure_latest_thread`) |
-| Threads UI | **Gmail → Threads** — Renglo threads for your user (read-only) |
+| Topic       | Behavior                                                                                                      |
+| ----------- | ------------------------------------------------------------------------------------------------------------- |
+| Poll        | ~2 min cron and/or **Poll now** (`trigger`: cron vs manual)                                                   |
+| Batch       | `gmail_config.poll_batch_size` (1–100, default 25)                                                            |
+| Unread      | Process `in:inbox is:unread`, then clear `UNREAD`                                                             |
+| Spam LINK   | While a LINK code is pending, also scan spam for `"LINK-"` messages matching that code (capped; see Security) |
+| Activity    | **Gmail → Activity** — indexed log + S3 poll detail                                                           |
+| Tokens      | Refresh via platform OAuth client + stored refresh token                                                      |
+| Agent       | `gmail_config.agent_handler` (default `dumbo/generic_agent`)                                                  |
+| Gmail reply | `threadId` + `In-Reply-To` / `References`                                                                     |
+| Sessions    | `user-gmailthread` / `{userId}-{gmailThreadId}` + Renglo thread UUID (`ensure_latest_thread`)                 |
+| Threads UI  | **Gmail → Threads** — Renglo threads for your user (read-only)                                                |
+
+
 
 
 ### Common Connect failures
@@ -138,6 +154,8 @@ Onboarding creates the tool, `schd_tools`, singleton `gmail_config`, poll job, a
 - **Access blocked / not a test user:** add the agent Google account as a test user, or finish verification
 
 ---
+
+
 
 ## Security
 
@@ -149,6 +167,8 @@ Onboarding creates the tool, `schd_tools`, singleton `gmail_config`, poll job, a
 
 ---
 
+
+
 ## You do NOT need (tenants or platform for v1 mail)
 
 - Per-tenant GCP projects  
@@ -159,25 +179,27 @@ Optional advanced override: empty `oauth_client_*` fields on `gmail_config` can 
 
 ---
 
+
+
 ## Activity traceability
 
 Operational events are recorded in ring `gmail_activity` (one document per UTC day, append-only `entries[]`). Poll batches store full message classifications in S3 (`_files/{portfolio}/_all/gmail_activity/{date}/{event_id}.json`); entries reference Gmail `msg_id` / `thread_id` (no email bodies stored).
 
-| Event type | When |
-| ---------- | ---- |
-| `mailbox_connected` | OAuth callback succeeded |
-| `mailbox_disconnected` | Settings disconnect |
-| `poll` | Cron or manual poll completed |
-| `poll_skipped` | Poll not ready (disabled / not connected) |
-| `poll_error` | Gmail list failed |
-| `identity_linked` | Inbound LINK code consumed |
-| `identity_unlinked` | User unlinked in console |
+
+| Event type             | When                                      |
+| ---------------------- | ----------------------------------------- |
+| `mailbox_connected`    | OAuth callback succeeded                  |
+| `mailbox_disconnected` | Settings disconnect                       |
+| `poll`                 | Cron or manual poll completed             |
+| `poll_skipped`         | Poll not ready (disabled / not connected) |
+| `poll_error`           | Gmail list failed                         |
+| `identity_linked`      | Inbound LINK code consumed                |
+| `identity_unlinked`    | User unlinked in console                  |
+
 
 Console: **Gmail → Activity**. API: `POST …/call/gmail/list_activity` with `{ days, limit, event_type? }` or `{ event_id }` for S3 detail.
 
 Upload blueprint `gmail_activity` on deploy (`upload_blueprints.py`).
 
 ---
-
-
 
