@@ -8,13 +8,14 @@ from typing import Any, Dict, List
 from renglo.common import load_config
 from renglo.data.data_controller import DataController
 
-from .activity_log import ActivityLog
-from .config import CONFIG_ORG, ConfigStore
-from .gmail_client import GmailClient, normalize_email
-from .identity_store import IdentityStore, extract_code_from_text
-from .oauth import ensure_fresh_credentials, token_fields_from_credentials
+from ..lib.activity_log import ActivityLog
+from ..lib.config import CONFIG_ORG, ConfigStore
+from ..lib.describe import describe_document
+from ..lib.gmail_client import GmailClient, normalize_email
+from ..lib.identity_store import IdentityStore, extract_code_from_text
+from ..lib.oauth import ensure_fresh_credentials, token_fields_from_credentials
 from .process_message import ProcessMessage, extract_agent_text
-from .session_coords import record_channel_delivery
+from ..lib.session_coords import record_channel_delivery
 
 _logger = logging.getLogger(__name__)
 
@@ -255,6 +256,32 @@ class PollInbox:
         # Valid pending codes first, then oldest among ties.
         candidates.sort(key=lambda row: (not row[0], row[1]))
         return [row[2] for row in candidates[:SPAM_PROCESS_CAP]], fetch_errors
+
+    def describe(self, payload=None):
+        return describe_document(
+            "poll_inbox",
+            "Poll inbox",
+            "Poll the agent mailbox for unread mail and pending LINK codes, then dispatch linked messages. "
+            "portfolio is injected by the platform.",
+            {
+                "trigger": {
+                    "type": "string",
+                    "title": "Trigger",
+                    "description": "Who started the poll, recorded on the activity log.",
+                    "default": "cron",
+                },
+                "link_code": {
+                    "type": "string",
+                    "title": "Link code hint",
+                    "description": "Optional LINK code to prefer while scanning spam.",
+                },
+            },
+            output_schema={
+                "type": "array",
+                "description": "One result per message handled in this poll.",
+                "items": {"type": "object"},
+            },
+        )
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         portfolio = str(payload.get("portfolio") or "")

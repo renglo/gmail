@@ -9,9 +9,10 @@ from urllib.parse import quote
 from renglo.common import load_config, resolve_invite_fe_base_url
 from renglo.data.data_controller import DataController
 
-from .activity_log import ActivityLog
-from .config import CONFIG_ORG, ConfigStore
-from .oauth import (
+from ..lib.activity_log import ActivityLog
+from ..lib.config import CONFIG_ORG, ConfigStore
+from ..lib.describe import describe_document
+from ..lib.oauth import (
     console_redirect_url,
     exchange_code,
     fetch_user_email,
@@ -29,6 +30,30 @@ class OauthCallback:
         config = load_config()
         self.config = config
         self.DAC = DataController(config=config)
+
+    def describe(self, payload=None):
+        return describe_document(
+            "oauth_callback",
+            "OAuth callback",
+            "Exchange the Google authorization code and store the agent mailbox tokens. "
+            "Called by the OAuth redirect. Send code and state together, or error when consent is denied.",
+            {
+                "code": {"type": "string", "title": "Authorization code"},
+                "state": {"type": "string", "title": "Signed state"},
+                "error": {
+                    "type": "string",
+                    "title": "Provider error",
+                    "description": "Set by Google when the user denies consent.",
+                },
+            },
+            output_schema={
+                "type": "object",
+                "properties": {
+                    "email": {"type": "string"},
+                    "redirect_url": {"type": "string"},
+                },
+            },
+        )
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         fe_base = ""

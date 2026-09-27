@@ -8,9 +8,10 @@ from renglo.auth.auth_controller import AuthController
 from renglo.common import load_config
 from renglo.data.data_controller import DataController
 
-from .activity_log import ActivityLog
-from .config import CONFIG_ORG, ConfigStore
-from .oauth import revoke_credentials
+from ..lib.activity_log import ActivityLog
+from ..lib.config import CONFIG_ORG, ConfigStore
+from ..lib.describe import describe_document
+from ..lib.oauth import revoke_credentials
 
 
 class OauthDisconnect:
@@ -18,6 +19,19 @@ class OauthDisconnect:
         config = load_config()
         self.DAC = DataController(config=config)
         self.AUC = AuthController(config=config)
+
+    def describe(self, payload=None):
+        return describe_document(
+            "oauth_disconnect",
+            "Disconnect mailbox",
+            "Revoke and clear the agent mailbox tokens. Requires an authenticated user. "
+            "portfolio is injected by the platform.",
+            {},
+            output_schema={
+                "type": "object",
+                "description": "Config update result after the tokens are cleared.",
+            },
+        )
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         portfolio = str(payload.get("portfolio") or "")

@@ -8,8 +8,9 @@ from renglo.auth.auth_controller import AuthController
 from renglo.common import load_config
 from renglo.data.data_controller import DataController
 
-from .config import CONFIG_ORG
-from .identity_store import IdentityStore
+from ..lib.config import CONFIG_ORG
+from ..lib.describe import describe_document
+from ..lib.identity_store import IdentityStore
 
 
 class Identities:
@@ -17,6 +18,37 @@ class Identities:
         config = load_config()
         self.DAC = DataController(config=config)
         self.AUC = AuthController(config=config)
+
+    def describe(self, payload=None):
+        return describe_document(
+            "identities",
+            "Gmail identities",
+            "List or unlink Gmail addresses bound to the authenticated user. "
+            "portfolio is injected by the platform. subhandler is an alias of action.",
+            {
+                "action": {
+                    "type": "string",
+                    "title": "Action",
+                    "enum": ["list", "status", "unlink", "delete"],
+                    "default": "list",
+                },
+                "subhandler": {
+                    "type": "string",
+                    "title": "Subhandler",
+                    "description": "Same values as action. Set from gmail/identities/<action>.",
+                    "enum": ["list", "status", "unlink", "delete"],
+                },
+                "external_id": {
+                    "type": "string",
+                    "title": "Email",
+                    "description": "Address to unlink. Omit to unlink every address for the current user.",
+                },
+            },
+            output_schema={
+                "type": "object",
+                "description": "A list of identities, or the unlink result.",
+            },
+        )
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         portfolio = str(payload.get("portfolio") or "")

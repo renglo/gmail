@@ -8,8 +8,9 @@ from renglo.auth.auth_controller import AuthController
 from renglo.common import load_config
 from renglo.data.data_controller import DataController
 
-from .config import CONFIG_ORG, ConfigStore
-from .oauth import (
+from ..lib.config import CONFIG_ORG, ConfigStore
+from ..lib.describe import describe_document
+from ..lib.oauth import (
     build_consent_url,
     generate_code_verifier,
     platform_oauth_client,
@@ -24,6 +25,33 @@ class OauthConnect:
         self.config = config
         self.DAC = DataController(config=config)
         self.AUC = AuthController(config=config)
+
+    def describe(self, payload=None):
+        return describe_document(
+            "oauth_connect",
+            "Connect mailbox",
+            "Start Google OAuth for the portfolio agent mailbox. Requires an authenticated user. "
+            "portfolio is injected by the platform.",
+            {
+                "org": {
+                    "type": "string",
+                    "title": "Return org",
+                    "description": "Org used when redirecting back to the console.",
+                },
+                "return_path": {
+                    "type": "string",
+                    "title": "Return path",
+                    "description": "Console path to open after consent.",
+                },
+            },
+            output_schema={
+                "type": "object",
+                "properties": {
+                    "auth_url": {"type": "string"},
+                    "redirect_uri": {"type": "string"},
+                },
+            },
+        )
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         portfolio = str(payload.get("portfolio") or "")
