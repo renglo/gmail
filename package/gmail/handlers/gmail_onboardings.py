@@ -12,7 +12,8 @@ from renglo.common import load_config
 from renglo.data.data_controller import DataController
 from renglo.schd.schd_controller import SchdController
 
-from .config import CONFIG_ORG, ConfigStore
+from ..lib.config import CONFIG_ORG, ConfigStore
+from ..lib.describe import describe_document
 
 _logger = logging.getLogger(__name__)
 
@@ -199,6 +200,20 @@ class GmailOnboardings:
             "input": [],
             "output": response,
         }
+
+    def describe(self, payload=None):
+        return describe_document(
+            "gmail_onboardings",
+            "Gmail onboarding",
+            "Install Gmail tools, the config singleton, and the inbox poll job. "
+            "portfolio is injected by the platform.",
+            {},
+            output_schema={
+                "type": "array",
+                "description": "One result object per setup step.",
+                "items": {"type": "object"},
+            },
+        )
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         results: List[Dict[str, Any]] = []

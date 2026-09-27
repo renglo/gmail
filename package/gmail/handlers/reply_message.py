@@ -8,9 +8,10 @@ from typing import Any, Dict
 from renglo.common import load_config
 from renglo.data.data_controller import DataController
 
-from .config import CONFIG_ORG, ConfigStore
-from .gmail_client import GmailClient, normalize_email
-from .oauth import ensure_fresh_credentials, token_fields_from_credentials
+from ..lib.config import CONFIG_ORG, ConfigStore
+from ..lib.describe import describe_document
+from ..lib.gmail_client import GmailClient, normalize_email
+from ..lib.oauth import ensure_fresh_credentials, token_fields_from_credentials
 
 _logger = logging.getLogger(__name__)
 
@@ -30,6 +31,32 @@ class ReplyMessage:
         if changed:
             store.update_fields(token_fields_from_credentials(creds), system=True)
         return GmailClient(creds), cfg, store
+
+    def describe(self, payload=None):
+        return describe_document(
+            "reply_message",
+            "Reply to a message",
+            "Send a threaded reply from the agent mailbox. portfolio is injected by the platform. "
+            "message also accepts text or body. thread_id also accepts threadId. "
+            "message_id_header also accepts in_reply_to or parent_message_id_header.",
+            {
+                "to": {"type": "string", "title": "To", "description": "Recipient email address."},
+                "message": {"type": "string", "title": "Message"},
+                "thread_id": {"type": "string", "title": "Gmail thread id"},
+                "subject": {"type": "string", "title": "Subject", "default": "Re:"},
+                "message_id_header": {
+                    "type": "string",
+                    "title": "In-Reply-To",
+                    "description": "Parent Message-ID header.",
+                },
+                "references": {"type": "string", "title": "References"},
+            },
+            required=["to", "message"],
+            output_schema={
+                "type": "object",
+                "description": "Gmail API send result.",
+            },
+        )
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         portfolio = str(payload.get("portfolio") or "")
