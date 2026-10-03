@@ -7,13 +7,54 @@ from typing import Any, Dict
 from renglo.common import load_config
 from renglo.data.data_controller import DataController
 
-from .activity_log import ActivityLog
+from ..lib.activity_log import ActivityLog
+from ..lib.describe import describe_document
 
 
 class ListActivity:
     def __init__(self) -> None:
         config = load_config()
         self.DAC = DataController(config=config)
+
+    def describe(self, payload=None):
+        return describe_document(
+            "list_activity",
+            "List activity",
+            "List recent Gmail activity, or load one event's S3 detail when event_id or detail_s3_path is set. "
+            "portfolio is injected by the platform.",
+            {
+                "days": {
+                    "type": "integer",
+                    "title": "Days",
+                    "description": "How far back to scan. Defaults to 7 for a list and 14 when looking up event_id.",
+                    "default": 7,
+                },
+                "limit": {
+                    "type": "integer",
+                    "title": "Limit",
+                    "default": 100,
+                },
+                "event_type": {"type": "string", "title": "Event type"},
+                "event_id": {
+                    "type": "string",
+                    "title": "Event id",
+                    "description": "Load the stored detail for this activity row.",
+                },
+                "detail_s3_path": {
+                    "type": "string",
+                    "title": "Detail path",
+                    "description": "Load this S3 object directly.",
+                },
+            },
+            output_schema={
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer"},
+                    "items": {"type": "array", "items": {"type": "object"}},
+                    "detail": {"type": "object"},
+                },
+            },
+        )
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         portfolio = str(payload.get("portfolio") or "")

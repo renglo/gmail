@@ -1,0 +1,14 @@
+{
+  "handlers": {
+    "gmail_onboardings": "gmail.handlers.gmail_onboardings.GmailOnboardings",
+    "identities": "gmail.handlers.identities.Identities",
+    "list_activity": "gmail.handlers.list_activity.ListActivity",
+    "mint_link": "gmail.handlers.mint_link.MintLink",
+    "oauth_callback": "gmail.handlers.oauth_callback.OauthCallback",
+    "oauth_connect": "gmail.handlers.oauth_connect.OauthConnect",
+    "oauth_disconnect": "gmail.handlers.oauth_disconnect.OauthDisconnect",
+    "poll_inbox": "gmail.handlers.poll_inbox.PollInbox",
+    "process_message": "gmail.handlers.process_message.ProcessMessage",
+    "reply_message": "gmail.handlers.reply_message.ReplyMessage"
+  }
+}

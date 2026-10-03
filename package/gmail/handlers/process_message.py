@@ -10,7 +10,8 @@ from renglo.common import load_config
 from renglo.data.data_controller import DataController
 from renglo.schd.schd_loader import SchdLoader
 
-from .session_coords import ensure_renglo_thread
+from ..lib.describe import describe_document
+from ..lib.session_coords import ensure_renglo_thread
 
 _logger = logging.getLogger(__name__)
 
@@ -144,6 +145,35 @@ class ProcessMessage:
         except Exception as exc:
             _logger.exception("Agent dispatch failed")
             return {"success": False, "error": str(exc)}
+
+    def describe(self, payload=None):
+        return describe_document(
+            "process_message",
+            "Process inbound email",
+            "Dispatch one linked inbound email to the agent and return the reply text. "
+            "portfolio is injected by the platform. message also accepts data. thread_id also accepts thread.",
+            {
+                "org": {"type": "string", "title": "Org"},
+                "user_id": {"type": "string", "title": "User id"},
+                "message": {"type": "string", "title": "Message"},
+                "external_id": {"type": "string", "title": "Sender email"},
+                "thread_id": {"type": "string", "title": "Gmail thread id"},
+                "subject": {"type": "string", "title": "Subject"},
+                "agent_handler": {
+                    "type": "string",
+                    "title": "Agent handler",
+                    "default": "dumbo/generic_agent",
+                },
+            },
+            required=["org", "user_id", "message"],
+            output_schema={
+                "type": "object",
+                "properties": {
+                    "reply": {"type": "string"},
+                    "agent": {"type": "object"},
+                },
+            },
+        )
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         portfolio = str(payload.get("portfolio") or "")

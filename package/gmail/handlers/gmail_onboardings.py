@@ -13,7 +13,8 @@ from renglo.common import load_config
 from renglo.data.data_controller import DataController
 from renglo.schd.schd_controller import SchdController
 
-from .config import CONFIG_ORG, ConfigStore
+from ..lib.config import CONFIG_ORG, ConfigStore
+from ..lib.describe import describe_document
 
 _logger = logging.getLogger(__name__)
 
@@ -76,6 +77,21 @@ class GmailOnboardings:
             "handle": handle,
             "portfolio_id": portfolio,
         }
+
+        existing = self.AUC.list_entity("tool", portfolio_id=portfolio)
+        items = ((existing or {}).get("document") or {}).get("items") or []
+        for item in items:
+            if str(item.get("handle") or "") == handle:
+                tool_id = item.get("_id")
+                self.bridge["tool_id"] = tool_id
+                return {
+                    "success": True,
+                    "action": action,
+                    "message": "Tool already installed",
+                    "input": kwargs,
+                    "output": item,
+                }
+
         response = self.AUC.create_entity("tool", **kwargs)
         self.bridge["tool_id"] = response.get("document", {}).get("_id")
 
@@ -97,6 +113,19 @@ class GmailOnboardings:
 
     def create_schd_tool_doc(self, portfolio: str, org: str, doc: Dict[str, Any]) -> Dict[str, Any]:
         action = "create_schd_tool_doc"
+        listed = self.DAC.get_a_b(portfolio, org, "schd_tools", limit=500)
+        key = str(doc.get("key") or "").strip()
+        if listed.get("success") and key:
+            for existing in listed.get("items", []):
+                if str(existing.get("key") or "").strip() == key:
+                    return {
+                        "success": True,
+                        "action": action,
+                        "message": "Scheduler tool already registered",
+                        "input": doc,
+                        "output": existing,
+                    }
+
         response, _status = self.DAC.post_a_b(portfolio, org, "schd_tools", doc)
         if not response.get("success"):
             return {
@@ -122,6 +151,20 @@ class GmailOnboardings:
             "goal": "Poll the agent Gmail inbox for linked inbound mail",
             "schedule_hint": "rate(2 minutes)",
         }
+        listed = self.DAC.get_a_b(portfolio, org, "schd_jobs", limit=500)
+        name = str(job.get("name") or "").strip()
+        if listed.get("success") and name:
+            for existing in listed.get("items", []):
+                if str(existing.get("name") or "").strip() == name:
+                    job_id = str(existing.get("_id") or "")
+                    self.bridge["schd_jobs_id"] = job_id
+                    return {
+                        "success": True,
+                        "action": action,
+                        "message": "Poll job already registered",
+                        "schd_jobs_id": job_id,
+                        "output": existing,
+                    }
         response, status = self.DAC.post_a_b(portfolio, org, "schd_jobs", job)
         if not response.get("success"):
             return {
@@ -196,6 +239,20 @@ class GmailOnboardings:
             "input": [],
             "output": response,
         }
+
+    def describe(self, payload=None):
+        return describe_document(
+            "gmail_onboardings",
+            "Gmail onboarding",
+            "Install Gmail tools, the config singleton, and the inbox poll job. "
+            "portfolio is injected by the platform.",
+            {},
+            output_schema={
+                "type": "array",
+                "description": "One result object per setup step.",
+                "items": {"type": "object"},
+            },
+        )
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         results: List[Dict[str, Any]] = []
