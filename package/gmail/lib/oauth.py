@@ -1,4 +1,4 @@
-"""Google OAuth helpers for the agent mailbox (platform OAuth client, Asana/cos-demo style)."""
+"""Google OAuth helpers for the agent mailbox (credentials live on each portfolio's gmail_config)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from base64 import urlsafe_b64decode, urlsafe_b64encode
 from typing import Any
 from random import SystemRandom
 from string import ascii_letters, digits
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -35,69 +35,66 @@ AUTH_URI = "https://accounts.google.com/o/oauth2/auth"
 REFRESH_LEEWAY_SEC = 60
 
 
-def platform_oauth_client(
-    config: dict[str, Any] | None = None,
-    *,
-    org_cfg: GmailConfig | None = None,
-) -> tuple[str, str]:
-    """
-    Resolve OAuth Web client credentials.
-
-    Primary: platform ``GOOGLE_OAUTH_CLIENT_ID`` / ``GOOGLE_OAUTH_CLIENT_SECRET``.
-    Optional escape hatch: org ``gmail_config`` oauth_client_* if both set.
-    """
-    if org_cfg and org_cfg.oauth_client_id and org_cfg.oauth_client_secret:
-        return org_cfg.oauth_client_id, org_cfg.oauth_client_secret
-    cfg = config or {}
-    client_id = (
-        cfg.get("GOOGLE_OAUTH_CLIENT_ID") or os.environ.get("GOOGLE_OAUTH_CLIENT_ID") or ""
-    ).strip()
-    client_secret = (
-        cfg.get("GOOGLE_OAUTH_CLIENT_SECRET")
-        or os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
-        or ""
-    ).strip()
+def portfolio_oauth_client(org_cfg: GmailConfig | None = None) -> tuple[str, str]:
+    """OAuth Web client for this portfolio's ``gmail_config`` singleton."""
+    client_id = (org_cfg.oauth_client_id if org_cfg else "").strip()
+    client_secret = (org_cfg.oauth_client_secret if org_cfg else "").strip()
     if not client_id or not client_secret:
         raise ValueError(
-            "Platform GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET are not configured"
+            "gmail_config oauth_client_id and oauth_client_secret are required for this portfolio"
         )
     return client_id, client_secret
 
 
-def is_platform_oauth_ready(config: dict[str, Any] | None = None) -> bool:
-    try:
-        platform_oauth_client(config)
-        return True
-    except ValueError:
-        return False
+def portfolio_state_secret(org_cfg: GmailConfig | None = None) -> str:
+    """HMAC key for OAuth state. Stored on the portfolio singleton, never a platform secret."""
+    secret = (org_cfg.oauth_state_secret if org_cfg else "").strip()
+    if not secret:
+        raise ValueError("gmail_config.oauth_state_secret is required for this portfolio")
+    return secret
 
 
-def redirect_uri_from_config(config: dict[str, Any] | None = None) -> str:
-    """Stable callback URL registered once on the platform OAuth client."""
-    cfg = config or {}
-    override = (cfg.get("GMAIL_OAUTH_REDIRECT_URI") or os.environ.get("GMAIL_OAUTH_REDIRECT_URI") or "").strip()
+def redirect_uri_from_config(
+    config: dict[str, Any] | None = None,
+    org_cfg: GmailConfig | None = None,
+) -> str:
+    """Callback URL sent to Google as redirect_uri.
+
+    ``gmail_config.oauth_redirect_uri`` overwrites the default when set.
+    Otherwise the callback is ``{BASE_URL}/_schd/gmail/oauth_callback``.
+    The Google client's authorized redirect URI must match this value exactly.
+    """
+    override = (org_cfg.oauth_redirect_uri if org_cfg else "").strip()
     if override:
+        parsed = urlparse(override)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            raise ValueError("gmail_config.oauth_redirect_uri must be an absolute http(s) URL")
         return override.rstrip("/")
+    cfg = config or {}
     base = (cfg.get("BASE_URL") or os.environ.get("BASE_URL") or "").strip().rstrip("/")
     if not base:
-        raise ValueError("BASE_URL or GMAIL_OAUTH_REDIRECT_URI must be configured")
+        raise ValueError("BASE_URL must be configured, or set gmail_config.oauth_redirect_uri")
     return f"{base}/_schd/gmail/oauth_callback"
 
 
-def _state_secret(config: dict[str, Any] | None = None) -> str:
-    cfg = config or {}
-    secret = (
-        cfg.get("OAUTH_STATE_SECRET")
-        or os.environ.get("OAUTH_STATE_SECRET")
-        or cfg.get("AUTH_SECRET")
-        or os.environ.get("AUTH_SECRET")
-        or cfg.get("SECRET_KEY")
-        or os.environ.get("SECRET_KEY")
-        or ""
-    )
-    if not secret:
-        raise ValueError("OAUTH_STATE_SECRET / AUTH_SECRET must be configured for Gmail OAuth state")
-    return str(secret)
+def normalize_console_return_url(raw: str) -> str:
+    """Absolute console URL for the browser that is already logged in.
+
+    Query and fragment are dropped. The callback adds its own query on the way back.
+    """
+    text = str(raw or "").strip()
+    if not text:
+        raise ValueError(
+            "return_url is required — send the console page this browser is already logged into"
+        )
+    parsed = urlparse(text)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise ValueError("return_url must be an absolute http(s) console URL")
+    if parsed.username or parsed.password:
+        raise ValueError("return_url must not include credentials")
+    port = f":{parsed.port}" if parsed.port else ""
+    path = parsed.path or "/"
+    return f"{parsed.scheme}://{parsed.hostname}{port}{path}"
 
 
 def generate_code_verifier() -> str:
@@ -107,54 +104,80 @@ def generate_code_verifier() -> str:
     return "".join(rnd.choice(chars) for _ in range(128))
 
 
-def sign_state(
-    *,
-    portfolio: str,
-    org: str = "_all",
-    return_org: str = "",
-    return_path: str = "",
-    code_verifier: str = "",
-    config: dict[str, Any] | None = None,
-    ttl_seconds: int = 600,
-) -> str:
-    """
-    ``org`` is always the config ring org (``_all``).
-    ``return_org`` is the console org to redirect back to after Connect.
-    ``return_path`` is the console path (e.g. ``/portfolio/org/gmail/settings``).
-    ``code_verifier`` is stored for PKCE token exchange on the callback.
-    """
-    payload = {
-        "portfolio": portfolio,
-        "org": org or "_all",
-        "return_org": return_org or org or "_all",
-        "exp": int(time.time()) + ttl_seconds,
-        "nonce": urlsafe_b64encode(os.urandom(12)).decode("ascii").rstrip("="),
-    }
-    path = str(return_path or "").strip()
-    if path:
-        payload["return_path"] = path if path.startswith("/") else f"/{path}"
-    verifier = str(code_verifier or "").strip()
-    if verifier:
-        payload["code_verifier"] = verifier
-    body = urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode("utf-8")).decode("ascii").rstrip("=")
-    sig = hmac.new(_state_secret(config).encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
-    return f"{body}.{sig}"
-
-
-def verify_state(state: str, config: dict[str, Any] | None = None) -> dict[str, Any]:
+def _decode_state_body(state: str) -> tuple[str, str, dict[str, Any]]:
     try:
         body, sig = state.rsplit(".", 1)
     except ValueError as exc:
         raise ValueError("Malformed OAuth state") from exc
-    expected = hmac.new(_state_secret(config).encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
+    pad = "=" * (-len(body) % 4)
+    try:
+        payload = json.loads(urlsafe_b64decode(body + pad).decode("utf-8"))
+    except Exception as exc:
+        raise ValueError("Malformed OAuth state") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("Malformed OAuth state")
+    return body, sig, payload
+
+
+def peek_state(state: str) -> dict[str, Any]:
+    """Read the state body before signature check, so the portfolio secret can be loaded.
+
+    The portfolio id is untrusted until ``verify_state`` succeeds with that portfolio's secret.
+    """
+    _body, _sig, payload = _decode_state_body(state)
+    return payload
+
+
+def sign_state(
+    *,
+    portfolio: str,
+    state_secret: str,
+    org: str = "_all",
+    return_org: str = "",
+    return_url: str = "",
+    code_verifier: str = "",
+    ttl_seconds: int = 600,
+) -> str:
+    """
+    ``org`` is always the config ring org (``_all``).
+    ``return_org`` is the console org embedded in ``return_url``.
+    ``return_url`` is the absolute console page the logged-in browser should come back to.
+    ``code_verifier`` is stored for PKCE token exchange on the callback.
+    ``state_secret`` is ``gmail_config.oauth_state_secret`` for this portfolio.
+    """
+    secret = str(state_secret or "").strip()
+    if not secret:
+        raise ValueError("gmail_config.oauth_state_secret is required for this portfolio")
+    payload = {
+        "portfolio": portfolio,
+        "org": org or "_all",
+        "return_org": return_org or org or "_all",
+        "return_url": normalize_console_return_url(return_url),
+        "exp": int(time.time()) + ttl_seconds,
+        "nonce": urlsafe_b64encode(os.urandom(12)).decode("ascii").rstrip("="),
+    }
+    verifier = str(code_verifier or "").strip()
+    if verifier:
+        payload["code_verifier"] = verifier
+    body = urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode("utf-8")).decode("ascii").rstrip("=")
+    sig = hmac.new(secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{body}.{sig}"
+
+
+def verify_state(state: str, state_secret: str) -> dict[str, Any]:
+    secret = str(state_secret or "").strip()
+    if not secret:
+        raise ValueError("gmail_config.oauth_state_secret is required for this portfolio")
+    body, sig, payload = _decode_state_body(state)
+    expected = hmac.new(secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected, sig):
         raise ValueError("Invalid OAuth state signature")
-    pad = "=" * (-len(body) % 4)
-    payload = json.loads(urlsafe_b64decode(body + pad).decode("utf-8"))
     if int(payload.get("exp") or 0) < int(time.time()):
         raise ValueError("OAuth state expired")
     if not payload.get("portfolio") or not payload.get("org"):
         raise ValueError("OAuth state missing portfolio/org")
+    if not payload.get("return_url"):
+        raise ValueError("OAuth state missing return_url")
     return payload
 
 
@@ -234,7 +257,8 @@ def credentials_from_config(
     cfg: GmailConfig,
     platform_config: dict[str, Any] | None = None,
 ) -> Credentials:
-    client_id, client_secret = platform_oauth_client(platform_config, org_cfg=cfg)
+    del platform_config  # mailbox credentials live on gmail_config, not platform env
+    client_id, client_secret = portfolio_oauth_client(cfg)
     expiry = None
     if cfg.token_expiry:
         try:
@@ -323,23 +347,15 @@ def revoke_credentials(cfg: GmailConfig) -> None:
 
 def console_redirect_url(
     *,
-    fe_base: str,
-    portfolio: str,
-    org: str,
-    return_path: str = "",
+    return_url: str,
     status: str,
     email: str = "",
     error: str = "",
-    tool_handle: str = "gmail",
-    section: str = "settings",
 ) -> str:
-    base = (fe_base or "").rstrip("/")
-    path = str(return_path or "").strip()
-    if path and not path.startswith("/"):
-        path = f"/{path}"
-    if not path:
-        path = f"/{portfolio}/{org}/{tool_handle}/{section}"
+    """Land on the console URL captured while the browser was already logged in."""
+    page = normalize_console_return_url(return_url)
     qs = urlencode({k: v for k, v in {"gmail": status, "as": email, "error": error}.items() if v})
-    if base:
-        return f"{base}{path}?{qs}" if qs else f"{base}{path}"
-    return f"{path}?{qs}" if qs else path
+    if not qs:
+        return page
+    joiner = "&" if "?" in page else "?"
+    return f"{page}{joiner}{qs}"

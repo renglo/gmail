@@ -301,7 +301,7 @@ class GmailOnboardings:
                 "goal": "Start Google OAuth for the agent mailbox",
                 "handler": "gmail/oauth_connect",
                 "init": "_",
-                "instructions": "Uses platform GOOGLE_OAUTH_CLIENT_ID/SECRET; stores mailbox tokens on gmail_config.",
+                "instructions": "Uses this portfolio's gmail_config OAuth client and state secret; stores mailbox tokens on gmail_config.",
                 "input": "{}",
                 "output": "_",
             },

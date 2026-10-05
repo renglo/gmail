@@ -70,20 +70,15 @@ Examples: `https://api.your-host.com/_schd/gmail/oauth_callback` or local API UR
 
 
 
-### 4. Configure the Renglo API
+### 4. Configure the portfolio
 
-In `env_config.py` / environment (see `dev/renglo-api/env_config.py.TEMPLATE`):
+On **Gmail → Settings** for that portfolio, save:
 
-```text
-GOOGLE_OAUTH_CLIENT_ID=...
-GOOGLE_OAUTH_CLIENT_SECRET=...
-BASE_URL=https://api.your-host.com
-# optional:
-# GMAIL_OAUTH_REDIRECT_URI=https://api.your-host.com/_schd/gmail/oauth_callback
-# OAUTH_STATE_SECRET=...   # else AUTH_SECRET / SECRET_KEY
-```
+- OAuth client id
+- OAuth client secret
+- OAuth state secret (HMAC key for this portfolio only)
 
-Also ensure state signing has `OAUTH_STATE_SECRET`, `AUTH_SECRET`, or `SECRET_KEY`.
+Connect sends `{BASE_URL}/_schd/gmail/oauth_callback` for the API it is running on. Register both the staging and production callbacks on the Google client.
 
 ---
 
@@ -93,11 +88,10 @@ Also ensure state signing has `OAUTH_STATE_SECRET`, `AUTH_SECRET`, or `SECRET_KE
 
 1. Install the extension (Marketplace → Gmail → select portfolio)
 2. From any org in that portfolio, open **Gmail → Settings**
-3. Click **Connect agent inbox**
-4. Sign in to Google as the agent mailbox (`agent@acme.com` or any other domain you can access) and **Allow**
-5. Console shows **Connected ✓** — all orgs in the portfolio share that inbox
-
-No GCP, no client secrets, no redirect URI registration for the tenant.
+3. Save the portfolio OAuth client id, client secret, and state secret
+4. Click **Connect agent inbox**
+5. Sign in to Google as the agent mailbox (`agent@acme.com` or any other domain you can access) and **Allow**
+6. The browser returns to the same console page (the session that started Connect) and shows **Connected ✓** — all orgs in the portfolio share that inbox
 
 ### User linking (LINK)
 
@@ -138,7 +132,7 @@ Onboarding creates the tool, `schd_tools`, singleton `gmail_config`, poll job, a
 | Unread      | Process `in:inbox is:unread`, then clear `UNREAD`                                                             |
 | Spam LINK   | While a LINK code is pending, also scan spam for `"LINK-"` messages matching that code (capped; see Security) |
 | Activity    | **Gmail → Activity** — indexed log + S3 poll detail                                                           |
-| Tokens      | Refresh via platform OAuth client + stored refresh token                                                      |
+| Tokens      | Refresh via this portfolio's `gmail_config` OAuth client + stored refresh token                               |
 | Agent       | `gmail_config.agent_handler` (default `dumbo/generic_agent`)                                                  |
 | Gmail reply | `threadId` + `In-Reply-To` / `References`                                                                     |
 | Sessions    | `user-gmailthread` / `{userId}-{gmailThreadId}` + Renglo thread UUID (`ensure_latest_thread`)                 |
@@ -149,8 +143,8 @@ Onboarding creates the tool, `schd_tools`, singleton `gmail_config`, poll job, a
 
 ### Common Connect failures
 
-- **Platform credentials missing:** set `GOOGLE_OAUTH_`* on the API
-- **redirect_uri_mismatch:** platform OAuth client redirect must match `BASE_URL` / `GMAIL_OAUTH_REDIRECT_URI`
+- **Portfolio credentials missing:** save `oauth_client_id`, `oauth_client_secret`, and `oauth_state_secret` on `gmail_config`
+- **redirect_uri_mismatch:** the Google client must list the callback Connect sends (`oauth_redirect_uri` if set, otherwise `{BASE_URL}/_schd/gmail/oauth_callback`)
 - **Access blocked / not a test user:** add the agent Google account as a test user, or finish verification
 
 ---
@@ -159,23 +153,22 @@ Onboarding creates the tool, `schd_tools`, singleton `gmail_config`, poll job, a
 
 ## Security
 
-- Platform holds the OAuth client secret; the portfolio holds mailbox tokens on `gmail_config` at `_all`
+- Each portfolio holds its OAuth client, state secret, and mailbox tokens on `gmail_config` at `_all`
 - Anyone who can open the agent mailbox in Gmail can audit the same threads (intentional)
 - Linked-only: unlinked senders are ignored (marked read, no outbound mail). Agent replies only to linked senders. A single confirmation is sent when email linking succeeds via LINK code.
 - **Spam LINK hardening:** Spam is scanned only while an unconsumed LINK code is pending (10‑minute window). Query is narrow (`"LINK-"` in spam). At most 10 fetched / 5 processed per poll; messages matching a valid pending code are prioritized; after 3 invalid spam LINK attempts in one poll, the rest are skipped. Invalid spam LINK mail is marked read (no agent, no reply). Successful links are moved from Spam to Inbox.
-- OAuth `state` is HMAC-signed
+- OAuth `state` is HMAC-signed with that portfolio's `oauth_state_secret`
 
 ---
 
 
 
-## You do NOT need (tenants or platform for v1 mail)
+## You do NOT need
 
-- Per-tenant GCP projects  
-- Cloud Pub/Sub / Gmail watch / DWD  
-- Pasting client id/secret in the org Settings UI
+- Cloud Pub/Sub / Gmail watch / DWD
+- A shared platform OAuth client or platform state secret
 
-Optional advanced override: empty `oauth_client_*` fields on `gmail_config` can override the platform client if both are set (not shown in the default Settings UI).
+Each portfolio does need its own Google OAuth Web client (client id, client secret, and a state secret on `gmail_config`).
 
 ---
 

@@ -13,7 +13,9 @@ from ..lib.describe import describe_document
 from ..lib.oauth import (
     build_consent_url,
     generate_code_verifier,
-    platform_oauth_client,
+    normalize_console_return_url,
+    portfolio_oauth_client,
+    portfolio_state_secret,
     redirect_uri_from_config,
     sign_state,
 )
@@ -31,17 +33,17 @@ class OauthConnect:
             "oauth_connect",
             "Connect mailbox",
             "Start Google OAuth for the portfolio agent mailbox. Requires an authenticated user. "
-            "portfolio is injected by the platform.",
+            "portfolio is injected by the platform. Credentials and the state secret come from gmail_config.",
             {
                 "org": {
                     "type": "string",
                     "title": "Return org",
-                    "description": "Org used when redirecting back to the console.",
+                    "description": "Org the console was showing when Connect started.",
                 },
-                "return_path": {
+                "return_url": {
                     "type": "string",
-                    "title": "Return path",
-                    "description": "Console path to open after consent.",
+                    "title": "Return URL",
+                    "description": "Absolute console URL of the browser that is already logged in.",
                 },
             },
             output_schema={
@@ -56,7 +58,6 @@ class OauthConnect:
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         portfolio = str(payload.get("portfolio") or "")
         return_org = str(payload.get("org") or CONFIG_ORG)
-        return_path = str(payload.get("return_path") or "").strip()
         if not portfolio:
             return {"success": False, "message": "portfolio required"}
 
@@ -69,16 +70,18 @@ class OauthConnect:
         cfg = store.load()
 
         try:
-            client_id, client_secret = platform_oauth_client(self.config, org_cfg=cfg)
-            redirect_uri = redirect_uri_from_config(self.config)
+            return_url = normalize_console_return_url(str(payload.get("return_url") or ""))
+            client_id, client_secret = portfolio_oauth_client(cfg)
+            state_secret = portfolio_state_secret(cfg)
+            redirect_uri = redirect_uri_from_config(self.config, cfg)
             code_verifier = generate_code_verifier()
             state = sign_state(
                 portfolio=portfolio,
+                state_secret=state_secret,
                 org=CONFIG_ORG,
                 return_org=return_org,
-                return_path=return_path,
+                return_url=return_url,
                 code_verifier=code_verifier,
-                config=self.config,
             )
             url = build_consent_url(
                 client_id=client_id,
