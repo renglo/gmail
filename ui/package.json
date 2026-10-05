@@ -1,6 +1,6 @@
 {
   "name": "@renglo/gmail",
-  "version": "1.0.3",
+  "version": "1.0.4-rc.1",
   "renglo": {
     "platform": "0.1.4"
   },
