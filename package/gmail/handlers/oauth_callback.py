@@ -4,19 +4,19 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Dict
-from urllib.parse import quote
 
-from renglo.common import load_config, resolve_invite_fe_base_url
+from renglo.common import load_config
 from renglo.data.data_controller import DataController
 
 from ..lib.activity_log import ActivityLog
-from ..lib.config import CONFIG_ORG, ConfigStore
+from ..lib.config import CONFIG_ORG, ConfigStore, GmailConfig
 from ..lib.describe import describe_document
 from ..lib.oauth import (
     console_redirect_url,
     exchange_code,
     fetch_user_email,
-    platform_oauth_client,
+    peek_state,
+    portfolio_oauth_client,
     redirect_uri_from_config,
     token_fields_from_credentials,
     verify_state,
@@ -55,68 +55,68 @@ class OauthCallback:
             },
         )
 
+    def _verified(self, state: str) -> tuple[dict[str, Any], GmailConfig, ConfigStore]:
+        peeked = peek_state(state)
+        portfolio = str(peeked.get("portfolio") or "").strip()
+        if not portfolio:
+            raise ValueError("OAuth state missing portfolio")
+        store = ConfigStore(self.DAC, portfolio, CONFIG_ORG)
+        cfg = store.load_for_ingress()
+        claims = verify_state(state, cfg.oauth_state_secret)
+        if str(claims.get("portfolio") or "") != portfolio:
+            raise ValueError("OAuth state portfolio mismatch")
+        return claims, cfg, store
+
+    def _fail(self, message: str, *, redirect_url: str = "") -> Dict[str, Any]:
+        out: Dict[str, Any] = {
+            "success": False,
+            "action": "oauth_callback",
+            "message": message,
+        }
+        if redirect_url:
+            out["redirect_url"] = redirect_url
+        return out
+
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        fe_base = ""
-        try:
-            fe_base = resolve_invite_fe_base_url(self.config) or ""
-        except Exception:
-            fe_base = (
-                str(self.config.get("FE_BASE_URL") or self.config.get("INVITE_FE_BASE_URL") or "")
-                .strip()
-                .rstrip("/")
-            )
-
         google_error = str(payload.get("error") or "").strip()
-        if google_error:
-            return {
-                "success": False,
-                "action": "oauth_callback",
-                "redirect_url": f"{fe_base}/?gmail=error&error={quote(google_error)}",
-                "message": google_error,
-            }
-
         code = str(payload.get("code") or "").strip()
         state = str(payload.get("state") or "").strip()
-        if not code or not state:
-            return {
-                "success": False,
-                "action": "oauth_callback",
-                "redirect_url": f"{fe_base}/?gmail=error&error=missing_code",
-                "message": "code and state required",
-            }
 
-        try:
-            claims = verify_state(state, self.config)
-        except Exception as exc:
-            _logger.warning("OAuth state verify failed: %s", exc)
-            return {
-                "success": False,
-                "action": "oauth_callback",
-                "redirect_url": f"{fe_base}/?gmail=error&error=invalid_state",
-                "message": str(exc),
-            }
-
-        portfolio = str(claims["portfolio"])
-        return_org = str(claims.get("return_org") or claims.get("org") or CONFIG_ORG)
-        return_path = str(claims.get("return_path") or "")
+        claims: dict[str, Any] | None = None
+        cfg: GmailConfig | None = None
+        store: ConfigStore | None = None
+        if state:
+            try:
+                claims, cfg, store = self._verified(state)
+            except Exception as exc:
+                _logger.warning("OAuth state verify failed: %s", exc)
+                return self._fail(str(exc))
 
         def _redirect(status: str, *, email: str = "", err: str = "") -> str:
             return console_redirect_url(
-                fe_base=fe_base,
-                portfolio=portfolio,
-                org=return_org,
-                return_path=return_path,
+                return_url=str((claims or {}).get("return_url") or ""),
                 status=status,
                 email=email,
                 error=err,
             )
-        store = ConfigStore(self.DAC, portfolio, CONFIG_ORG)
-        store.ensure_defaults()
-        cfg = store.load_for_ingress()
+
+        if google_error:
+            redirect_url = ""
+            if claims:
+                redirect_url = _redirect("error", err=google_error[:180])
+            return self._fail(google_error, redirect_url=redirect_url)
+
+        if not code or not claims or cfg is None or store is None:
+            redirect_url = ""
+            if claims:
+                redirect_url = _redirect("error", err="missing_code")
+            return self._fail("code and state required", redirect_url=redirect_url)
+
+        portfolio = str(claims["portfolio"])
 
         try:
-            client_id, client_secret = platform_oauth_client(self.config, org_cfg=cfg)
-            redirect_uri = redirect_uri_from_config(self.config)
+            client_id, client_secret = portfolio_oauth_client(cfg)
+            redirect_uri = redirect_uri_from_config(self.config, cfg)
             creds = exchange_code(
                 client_id=client_id,
                 client_secret=client_secret,

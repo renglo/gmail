@@ -4,14 +4,13 @@
 
 Gmail API v1 via OAuth 2.0 (authorization code + offline refresh). No Pub/Sub, IMAP, or domain-wide delegation in v1.
 
-## OAuth (platform-owned)
+## OAuth (per portfolio)
 
-- **Platform** configures `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` once (External Web client for any-domain agent inboxes).
-- Tenants do **not** create GCP projects or paste client secrets.
-- Connect: Google consent as `agent@any-domain.com` → refresh tokens stored on portfolio `gmail_config` at `_all`.
-- Callback: `GET /_schd/gmail/oauth_callback` (no Cognito; signed `state` carries portfolio + return org for UI redirect).
+- Each portfolio stores `oauth_client_id`, `oauth_client_secret`, and `oauth_state_secret` on singleton `gmail_config` at `_all`. There is no platform OAuth client or platform state secret.
+- Connect: Google consent as `agent@any-domain.com` → refresh tokens stored on that same document.
+- Callback: `GET /_schd/gmail/oauth_callback` (no Cognito). Signed `state` carries the portfolio and the absolute console `return_url` of the browser that was already logged in.
 - Scopes: `openid`, userinfo email/profile, `gmail.modify`, `gmail.send`.
-- Optional `oauth_client_*` on `gmail_config` is an advanced override only (hidden from default Settings UI).
+- Callback sent to Google is `gmail_config.oauth_redirect_uri` when set, otherwise `{BASE_URL}/_schd/gmail/oauth_callback`. The Google client must list that exact URI.
 
 ## Agent mailbox
 

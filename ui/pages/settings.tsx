@@ -17,12 +17,18 @@ const SINGLETON_ID = "00000000-0000-0000-0000-000000000000";
 const CONFIG_ORG = "_all";
 
 type ConfigForm = {
+  oauth_client_id: string;
+  oauth_client_secret: string;
+  oauth_state_secret: string;
   agent_handler: string;
   enabled: string;
   poll_batch_size: string;
 };
 
 const EMPTY: ConfigForm = {
+  oauth_client_id: "",
+  oauth_client_secret: "",
+  oauth_state_secret: "",
   agent_handler: "dumbo/generic_agent",
   enabled: "true",
   poll_batch_size: "25",
@@ -53,6 +59,7 @@ export default function GmailSettings({ portfolio, org }: AgentProps) {
   const [connecting, setConnecting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [persisted, setPersisted] = useState<ConfigForm>(EMPTY);
 
   const apiBase = import.meta.env.VITE_API_URL;
   const path = `${apiBase}/_data/${portfolio}/${CONFIG_ORG}/gmail_config/${SINGLETON_ID}`;
@@ -74,11 +81,16 @@ export default function GmailSettings({ portfolio, org }: AgentProps) {
         return;
       }
       const data = await res.json();
-      setForm({
+      const next: ConfigForm = {
+        oauth_client_id: String(data.oauth_client_id || ""),
+        oauth_client_secret: String(data.oauth_client_secret || ""),
+        oauth_state_secret: String(data.oauth_state_secret || ""),
         agent_handler: String(data.agent_handler || "dumbo/generic_agent"),
         enabled: String(data.enabled ?? "true"),
         poll_batch_size: String(data.poll_batch_size || "25"),
-      });
+      };
+      setForm(next);
+      setPersisted(next);
       setConnectedEmail(String(data.email || ""));
       setHasRefresh(Boolean(String(data.refresh_token || "").trim()));
     } catch {
@@ -112,6 +124,9 @@ export default function GmailSettings({ portfolio, org }: AgentProps) {
         method: "PUT",
         headers: authHeaders,
         body: JSON.stringify({
+          oauth_client_id: form.oauth_client_id,
+          oauth_client_secret: form.oauth_client_secret,
+          oauth_state_secret: form.oauth_state_secret,
           agent_handler: form.agent_handler,
           enabled: form.enabled,
           poll_batch_size: form.poll_batch_size,
@@ -141,7 +156,7 @@ export default function GmailSettings({ portfolio, org }: AgentProps) {
         body: JSON.stringify({
           portfolio,
           org,
-          return_path: window.location.pathname,
+          return_url: `${window.location.origin}${window.location.pathname}`,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -152,7 +167,7 @@ export default function GmailSettings({ portfolio, org }: AgentProps) {
           String(
             unwrapped.message ||
               data.message ||
-              "Connect failed — platform GOOGLE_OAUTH_CLIENT_ID/SECRET may be missing",
+              "Connect failed — set this portfolio's OAuth client id, client secret, and state secret, then save",
           ),
         );
         return;
@@ -203,6 +218,16 @@ export default function GmailSettings({ portfolio, org }: AgentProps) {
     }
   }
 
+  const oauthDirty =
+    form.oauth_client_id !== persisted.oauth_client_id ||
+    form.oauth_client_secret !== persisted.oauth_client_secret ||
+    form.oauth_state_secret !== persisted.oauth_state_secret;
+  const oauthReady =
+    !oauthDirty &&
+    Boolean(persisted.oauth_client_id.trim()) &&
+    Boolean(persisted.oauth_client_secret.trim()) &&
+    Boolean(persisted.oauth_state_secret.trim());
+
   function field(key: keyof ConfigForm, label: string, hint?: string, type = "text") {
     return (
       <div className="space-y-1.5">
@@ -224,8 +249,8 @@ export default function GmailSettings({ portfolio, org }: AgentProps) {
         <CardHeader>
           <CardTitle>Gmail settings</CardTitle>
           <CardDescription>
-            Connect this portfolio’s shared agent inbox with Google. One inbox for the whole portfolio; OAuth app credentials are
-            platform-wide — you only click Connect.
+            Connect this portfolio’s shared agent inbox with Google. Each portfolio keeps its own OAuth client and state secret.
+            After consent, the browser returns to this page.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -249,6 +274,24 @@ export default function GmailSettings({ portfolio, org }: AgentProps) {
               </div>
 
               {field(
+                "oauth_client_id",
+                "OAuth client id",
+                "Google OAuth Web client id for this portfolio",
+                "password",
+              )}
+              {field(
+                "oauth_client_secret",
+                "OAuth client secret",
+                "Google OAuth Web client secret for this portfolio",
+                "password",
+              )}
+              {field(
+                "oauth_state_secret",
+                "OAuth state secret",
+                "HMAC secret for this portfolio's OAuth state. Save before Connect.",
+                "password",
+              )}
+              {field(
                 "agent_handler",
                 "Agent handler",
                 "extension/handler for linked messages (default dumbo/generic_agent)",
@@ -265,9 +308,14 @@ export default function GmailSettings({ portfolio, org }: AgentProps) {
                 <Button onClick={() => void save()} disabled={saving}>
                   {saving ? "Saving…" : "Save"}
                 </Button>
-                <Button variant="default" onClick={() => void connect()} disabled={connecting}>
+                <Button variant="default" onClick={() => void connect()} disabled={connecting || !oauthReady}>
                   {connecting ? "…" : hasRefresh ? "Re-connect mailbox" : "Connect agent inbox"}
                 </Button>
+                {!oauthReady && (
+                  <p className="w-full text-xs text-muted-foreground">
+                    Save this portfolio's OAuth client id, client secret, and state secret before Connect.
+                  </p>
+                )}
                 {hasRefresh && (
                   <Button variant="outline" onClick={() => void disconnect()} disabled={connecting}>
                     Disconnect

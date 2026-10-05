@@ -17,6 +17,8 @@ CONFIG_ORG = "_all"
 class GmailConfig:
     oauth_client_id: str = ""
     oauth_client_secret: str = ""
+    oauth_state_secret: str = ""
+    oauth_redirect_uri: str = ""
     email: str = ""
     access_token: str = ""
     refresh_token: str = ""
@@ -71,6 +73,8 @@ class ConfigStore:
         return GmailConfig(
             oauth_client_id=str(res.get("oauth_client_id") or "").strip(),
             oauth_client_secret=str(res.get("oauth_client_secret") or "").strip(),
+            oauth_state_secret=str(res.get("oauth_state_secret") or "").strip(),
+            oauth_redirect_uri=str(res.get("oauth_redirect_uri") or "").strip(),
             email=str(res.get("email") or "").strip(),
             access_token=str(res.get("access_token") or "").strip(),
             refresh_token=str(res.get("refresh_token") or "").strip(),
@@ -135,6 +139,8 @@ class ConfigStore:
             "_id": SINGLETON_ID,
             "oauth_client_id": "",
             "oauth_client_secret": "",
+            "oauth_state_secret": "",
+            "oauth_redirect_uri": "",
             "email": "",
             "access_token": "",
             "refresh_token": "",
