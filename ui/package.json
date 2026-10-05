@@ -1,6 +1,9 @@
 {
   "name": "@renglo/gmail",
   "version": "1.0.3",
+  "renglo": {
+    "platform": "0.1.4"
+  },
   "license": "MIT",
   "type": "module",
   "main": "./gmail.tsx",
