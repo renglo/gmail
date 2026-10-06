@@ -2,7 +2,7 @@
   "name": "@renglo/gmail",
   "version": "1.0.6-rc.1",
   "renglo": {
-    "platform": "0.1.6"
+    "platform": "0.1.5"
   },
   "license": "MIT",
   "type": "module",
