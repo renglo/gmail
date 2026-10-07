@@ -28,7 +28,7 @@ export default function GmailConversations({ portfolio, tool }: AgentProps) {
       tool={tool}
       readOnly
       title="Email threads"
-      description={`Renglo threads for entity_type user-gmailthread (entity_id prefix ${userId}-…). Each Gmail email-thread is its own entity_id; Renglo threads under it reset context after compaction.`}
+      description={`Threads for user-gmailthread (entity_id prefix ${userId}-…). Each Gmail email thread is its own entity_id; create a new thread after compaction to reset context.`}
       fixedEntityType="user-gmailthread"
       fixedEntityId={`${userId}-`}
       threadSource="query_prefix"

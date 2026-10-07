@@ -71,6 +71,7 @@ class ProcessMessage:
         external_id: str,
         thread_id: str,
         subject: str = "",
+        reply_args: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         parts = agent_handler.split("/")
         if len(parts) != 2:
@@ -117,6 +118,11 @@ class ProcessMessage:
         if subject:
             agent_message = f"Subject: {subject}\n\n{message}"
 
+        outbound = dict(reply_args or {})
+        outbound.setdefault("to", external_id)
+        outbound.setdefault("thread_id", gmail_thread_id)
+        if subject:
+            outbound.setdefault("subject", subject)
         agent_payload = {
             "portfolio": portfolio,
             "org": org,
@@ -131,6 +137,7 @@ class ProcessMessage:
             "external_id": external_id,
             "subject": subject,
             "gmail_thread_id": gmail_thread_id,
+            "reply_args": {key: value for key, value in outbound.items() if str(value or "").strip()},
         }
         try:
             result = instance.run(agent_payload)
@@ -184,6 +191,11 @@ class ProcessMessage:
         thread_id = str(payload.get("thread_id") or payload.get("thread") or "")
         subject = str(payload.get("subject") or "")
         agent_handler = str(payload.get("agent_handler") or "dumbo/generic_agent")
+        raw_reply = payload.get("reply_args")
+        reply_args = dict(raw_reply) if isinstance(raw_reply, dict) else {}
+        for key in ("message_id_header", "references", "to"):
+            if payload.get(key) and key not in reply_args:
+                reply_args[key] = payload.get(key)
 
         if not all([portfolio, org, user_id, message]):
             return {"success": False, "message": "portfolio, org, user_id, message required"}
@@ -197,6 +209,7 @@ class ProcessMessage:
             external_id=external_id,
             thread_id=thread_id,
             subject=subject,
+            reply_args=reply_args,
         )
         reply = extract_agent_text(agent_result)
         return {

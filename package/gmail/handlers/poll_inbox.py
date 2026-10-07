@@ -140,6 +140,13 @@ class PollInbox:
                 external_id=external_id,
                 thread_id=msg.get("thread_id") or "",
                 subject=subject,
+                reply_args={
+                    "to": external_id,
+                    "thread_id": msg.get("thread_id") or "",
+                    "subject": subject or "Re:",
+                    "message_id_header": msg.get("message_id_header") or "",
+                    "references": msg.get("references") or "",
+                },
             )
             reply = extract_agent_text(agent_result)
             send_result = None
