@@ -78,21 +78,20 @@ class GmailOnboardings:
             "portfolio_id": portfolio,
         }
 
-        existing = self.AUC.list_entity("tool", portfolio_id=portfolio)
-        items = ((existing or {}).get("document") or {}).get("items") or []
-        for item in items:
-            if str(item.get("handle") or "") == handle:
-                tool_id = item.get("_id")
-                self.bridge["tool_id"] = tool_id
-                return {
-                    "success": True,
-                    "action": action,
-                    "message": "Tool already installed",
-                    "input": kwargs,
-                    "output": item,
-                }
+        existing = self.AUC.find_installable_by_handle(portfolio, handle)
+        if existing:
+            item = existing.get("document") or {}
+            tool_id = item.get("_id")
+            self.bridge["tool_id"] = tool_id
+            return {
+                "success": True,
+                "action": action,
+                "message": "Tool already installed",
+                "input": kwargs,
+                "output": item,
+            }
 
-        response = self.AUC.create_entity("tool", **kwargs)
+        response = self.AUC.create_entity("extension", **kwargs)
         self.bridge["tool_id"] = response.get("document", {}).get("_id")
 
         if not response.get("success"):
